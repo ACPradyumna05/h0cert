@@ -17,374 +17,433 @@ interface VerificationResponse {
 
 const Upload: React.FC = () => {
   // State variables
+  const [activeTab, setActiveTab] = useState<'upload' | 'retrieve'>('upload');
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const [verified, setVerified] = useState<boolean>(false);
+  const [currentNFTId, setCurrentNFTId] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<{ message: string; type: 'info' | 'success' | 'error' | '' }>({ message: '', type: '' });
+  const [retrieveStatus, setRetrieveStatus] = useState<{ message: string; type: 'info' | 'success' | 'error' | '' }>({ message: '', type: '' });
+  const [nftIdInput, setNftIdInput] = useState<string>('');
+  const [showNftResult, setShowNftResult] = useState<boolean>(false);
+  const [showDocumentPreview, setShowDocumentPreview] = useState<boolean>(false);
+  const [previewContent, setPreviewContent] = useState<React.ReactNode | null>(null);
+  const [currentDocId, setCurrentDocId] = useState<number | null>(null);
+  const [downloadableContent, setDownloadableContent] = useState<{ data: string; filename: string } | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
 
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const uploadStatusRef = useRef<HTMLDivElement>(null);
+  const retrieveStatusRef = useRef<HTMLDivElement>(null);
 
-// State variables
-const [activeTab, setActiveTab] = useState<'upload' | 'retrieve'>('upload');
-const [currentFile, setCurrentFile] = useState<File | null>(null);
-const [verified, setVerified] = useState<boolean>(false);
-const [currentNFTId, setCurrentNFTId] = useState<string | null>(null);
-const [uploadStatus, setUploadStatus] = useState<{ message: string; type: 'info' | 'success' | 'error' | '' }>({ message: '', type: '' });
-const [retrieveStatus, setRetrieveStatus] = useState<{ message: string; type: 'info' | 'success' | 'error' | '' }>({ message: '', type: '' });
-const [nftIdInput, setNftIdInput] = useState<string>('');
-const [showNftResult, setShowNftResult] = useState<boolean>(false);
-const [showDocumentPreview, setShowDocumentPreview] = useState<boolean>(false);
-const [previewContent, setPreviewContent] = useState<React.ReactNode | null>(null);
-const [currentDocId, setCurrentDocId] = useState<number | null>(null);
+  // Internet Computer connection
+  const [actor, setActor] = useState<any>(null);
 
-// Refs
-const fileInputRef = useRef<HTMLInputElement>(null);
-const dropZoneRef = useRef<HTMLDivElement>(null);
-const uploadStatusRef = useRef<HTMLDivElement>(null);
-const retrieveStatusRef = useRef<HTMLDivElement>(null);
-
-// Internet Computer connection
-const [actor, setActor] = useState<any>(null);
-
-// Initialize IC actor on component mount
-useEffect(() => {
-  const initActor = async () => {
-    try {
-      // Create an agent (use { host } config for production)
-      const agent = new HttpAgent({ host: import.meta.env.CANISTER_HOST || 'http://localhost:4943' });
-      
-      // In development, we need to fetch the root key
-      if (import.meta.env.NODE_ENV !== 'production') {
-        await agent.fetchRootKey();
-      }
-      
-      // Canister ID from your dfx.json or environment variables
-      const canisterId = import.meta.env.ACADEMIC_CERTIFICATE_CANISTER_ID || '7sotd-p4lsj-o6vua-uh46q';
-      
-      // Create the actor
-      const academicCertificateActor = Actor.createActor(idlFactory, {
-        agent,
-        canisterId,
-      });
-      
-      setActor(academicCertificateActor);
-      console.log('Actor initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize actor:', error);
-      showStatus('upload', 'Failed to connect to the Internet Computer. Please check your connection.', 'error');
-    }
-  };
-  
-  initActor();
-}, []);
-
-// Handle tab switching
-const openTab = (tabName: 'upload' | 'retrieve') => {
-  setActiveTab(tabName);
-};
-
-// Handle file selection
-const handleFileSelection = (file: File) => {
-  setCurrentFile(file);
-  showStatus('upload', `File selected: ${file.name}`, 'info');
-  setVerified(false);
-  setShowNftResult(false);
-  setCurrentDocId(null);
-  setCurrentNFTId(null);
-};
-
-// File drop handlers
-const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-  e.preventDefault();
-  if (dropZoneRef.current) {
-    dropZoneRef.current.style.borderColor = '#b62ff0';
-    dropZoneRef.current.style.backgroundColor = 'rgba(182, 47, 240, 0.1)';
-  }
-};
-
-const handleDragLeave = () => {
-  if (dropZoneRef.current) {
-    dropZoneRef.current.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-    dropZoneRef.current.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-  }
-};
-
-const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-  e.preventDefault();
-  handleDragLeave();
-  
-  if (e.dataTransfer.files.length) {
-    handleFileSelection(e.dataTransfer.files[0]);
-  }
-};
-
-const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (e.target.files && e.target.files.length) {
-    handleFileSelection(e.target.files[0]);
-  }
-};
-
-// Convert file to base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    
-    reader.onload = () => {
-      resolve(reader.result as string);
-    };
-    
-    reader.onerror = (error) => {
-      reject(error);
-    };
-    
-    reader.readAsDataURL(file);
-  });
-};
-
-// Calculate simple hash of file for tracking
-const calculateFileHash = async (file: File): Promise<string> => {
-  // In a real app, use a proper hash function
-  // This is a simplified version
-  const arrayBuffer = await file.arrayBuffer();
-  const hashArray = Array.from(new Uint8Array(arrayBuffer))
-    .slice(0, 100) // Use just the first 100 bytes for demo
-    .map(b => b.toString(16).padStart(2, '0'));
-  
-  return hashArray.join('').substring(0, 40); // Return first 40 chars of hash
-};
-
-// Show status message
-const showStatus = (type: 'upload' | 'retrieve', message: string, statusType: 'info' | 'success' | 'error') => {
-  if (type === 'upload') {
-    setUploadStatus({ message, type: statusType });
-    if (uploadStatusRef.current) {
-      uploadStatusRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  } else {
-    setRetrieveStatus({ message, type: statusType });
-    if (retrieveStatusRef.current) {
-      retrieveStatusRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }
-};
-
-// Handle document upload to IC
-const handleUploadDocument = async () => {
-  if (!actor) {
-    showStatus('upload', 'Connection to Internet Computer not established', 'error');
-    return;
-  }
-
-  if (!currentFile) {
-    showStatus('upload', 'Please select a file first', 'error');
-    return;
-  }
-
-  showStatus('upload', 'Uploading document to Internet Computer...', 'info');
-
-  try {
-    // Calculate file hash for tracking
-    const fileHash = await calculateFileHash(currentFile);
-    
-    // Upload document to IC canister
-    const docId = await actor.uploadDocument(currentFile.name, fileHash);
-    
-    setCurrentDocId(Number(docId));
-    showStatus('upload', `Document uploaded successfully! Document ID: ${docId}`, 'success');
-  } catch (error) {
-    console.error('Upload error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('upload', `Error uploading document: ${errorMessage}`, 'error');
-  }
-};
-
-// Handle verify document
-const handleVerify = async () => {
-  if (!actor) {
-    showStatus('upload', 'Connection to Internet Computer not established', 'error');
-    return;
-  }
-
-  if (!currentFile) {
-    showStatus('upload', 'Please select a file first', 'error');
-    return;
-  }
-
-  if (!currentDocId) {
-    showStatus('upload', 'Please upload the document to the Internet Computer first', 'error');
-    return;
-  }
-  
-  showStatus('upload', 'Verifying document authenticity...', 'info');
-  
-  try {
-    // Convert file to base64 for API
-    const base64String = await fileToBase64(currentFile);
-    // Extract just the base64 data without the data URL prefix
-    const base64Data = base64String.split(',')[1];
-    
-    // Call the verification function on the IC canister
-    const isVerified = await actor.verifyDocument(currentDocId, base64Data);
-    
-    if (isVerified) {
-      setVerified(true);
-      showStatus('upload', 'Document verified successfully!', 'success');
-    } else {
-      showStatus('upload', 'Verification failed. Document may not be authentic.', 'error');
-    }
-  } catch (error) {
-    console.error('Verification error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('upload', `Error during verification: ${errorMessage}`, 'error');
-  }
-};
-
-// Handle push to blockchain (mint NFT)
-const handlePushToBlockchain = async () => {
-  if (!actor) {
-    showStatus('upload', 'Connection to Internet Computer not established', 'error');
-    return;
-  }
-
-  if (!verified) {
-    showStatus('upload', 'Please verify your document first', 'error');
-    return;
-  }
-
-  if (!currentDocId) {
-    showStatus('upload', 'Document ID not found', 'error');
-    return;
-  }
-  
-  showStatus('upload', 'Minting NFT certificate...', 'info');
-  
-  try {
-    // Call the mintCertificateNFT function on the canister
-    const nftIdOpt = await actor.mintCertificateNFT(currentDocId);
-    
-    // Handle null case (Option type in Motoko returns null if None)
-    if (nftIdOpt === null) {
-      showStatus('upload', 'Failed to mint NFT. Document may not be verified.', 'error');
-      return;
-    }
-    
-    // Set the NFT ID in state
-    const nftId = Number(nftIdOpt);
-    setCurrentNFTId(`DOC${nftId}`);
-    
-    showStatus('upload', 'NFT certificate minted successfully!', 'success');
-  } catch (error) {
-    console.error('NFT minting error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('upload', `Error minting NFT: ${errorMessage}`, 'error');
-  }
-};
-
-// Handle fetch NFT ID
-const handleFetchNFTId = () => {
-  if (!currentNFTId) {
-    showStatus('upload', 'Please mint your NFT certificate first', 'error');
-    return;
-  }
-  
-  setShowNftResult(true);
-  
-  // Auto-fill the retrieval input for demo convenience
-  setNftIdInput(currentNFTId);
-};
-
-// Parse NFT ID to get numeric ID
-const parseNftId = (nftId: string): number | null => {
-  const match = nftId.match(/DOC(\d+)/);
-  if (match && match[1]) {
-    return parseInt(match[1], 10);
-  }
-  return null;
-};
-
-// Handle fetch document
-const handleFetchDocument = async () => {
-  if (!actor) {
-    showStatus('retrieve', 'Connection to Internet Computer not established', 'error');
-    return;
-  }
-
-  const nftId = nftIdInput.trim();
-  
-  if (!nftId) {
-    showStatus('retrieve', 'Please enter an NFT ID', 'error');
-    return;
-  }
-  
-  showStatus('retrieve', 'Fetching document from blockchain...', 'info');
-  
-  try {
-    // Parse the NFT ID to get the numeric part
-    const numericId = parseNftId(nftId);
-    
-    if (numericId === null) {
-      showStatus('retrieve', 'Invalid NFT ID format. Expected format: DOC123456', 'error');
-      return;
-    }
-    
-    // Query all documents for the current user
-    const myDocs = await actor.listMyDocuments();
-    
-    // Find the document with matching NFT ID
-    const doc: { nftId?: number; filename: string; id: number; fileHash: string } | undefined = myDocs.find(
-      (d: { nftId?: number; filename: string; id: number; fileHash: string }) => d.nftId && Number(d.nftId) === numericId
-    );
-    
-    if (doc) {
-      showStatus('retrieve', 'Document retrieved successfully!', 'success');
-      
-      // Display document info
-      setShowDocumentPreview(true);
-      setPreviewContent(
-        <>
-          <p><strong>Filename:</strong> {doc.filename}</p>
-          <p><strong>Document ID:</strong> {doc.id.toString()}</p>
-          <p><strong>NFT ID:</strong> {doc.nftId ? `DOC${doc.nftId.toString()}` : 'N/A'}</p>
-          <p><strong>Status:</strong> <span style={{ color: '#2ed573' }}>✓ Verified</span></p>
-          <p><strong>File Hash:</strong> {doc.fileHash}</p>
-          <p><em>The original document content would be downloadable here in a production system</em></p>
-        </>
-      );
-    } else {
-      // Try to fetch specific document if user has permission
+  // Initialize IC actor on component mount
+  useEffect(() => {
+    const initActor = async () => {
       try {
-        // For each document ID up to a reasonable limit, try to find one with the matching NFT ID
-        // This is inefficient but works within the constraints of the current backend design
-        for (let i = 1; i < 100; i++) {
-          const docOpt = await actor.getDocument(i);
-          if (docOpt && docOpt.nftId && Number(docOpt.nftId) === numericId) {
-            showStatus('retrieve', 'Document retrieved successfully!', 'success');
-            
-            setShowDocumentPreview(true);
-            setPreviewContent(
-              <>
-                <p><strong>Filename:</strong> {docOpt.filename}</p>
-                <p><strong>Document ID:</strong> {docOpt.id.toString()}</p>
-                <p><strong>NFT ID:</strong> DOC{docOpt.nftId.toString()}</p>
-                <p><strong>Status:</strong> <span style={{ color: '#2ed573' }}>✓ Verified</span></p>
-                <p><strong>File Hash:</strong> {docOpt.fileHash}</p>
-                <p><em>The original document content would be downloadable here in a production system</em></p>
-              </>
-            );
-            return;
-          }
+        // Create an agent (use { host } config for production)
+        const agent = new HttpAgent({ host: import.meta.env.CANISTER_HOST || 'http://localhost:4943' });
+        
+        // In development, we need to fetch the root key
+        if (import.meta.env.NODE_ENV !== 'production') {
+          await agent.fetchRootKey();
         }
         
-        showStatus('retrieve', 'No document found with this NFT ID or you do not have permission to view it', 'error');
-        setShowDocumentPreview(false);
+        // Canister ID from your dfx.json or environment variables
+        const canisterId = import.meta.env.ACADEMIC_CERTIFICATE_CANISTER_ID || '7sotd-p4lsj-o6vua-uh46q';
+        
+        // Create the actor
+        const academicCertificateActor = Actor.createActor(idlFactory, {
+          agent,
+          canisterId,
+        });
+        
+        setActor(academicCertificateActor);
+        console.log('Actor initialized successfully');
       } catch (error) {
-        console.error('Document fetch error:', error);
-        showStatus('retrieve', 'No document found with this NFT ID or you do not have permission to view it', 'error');
-        setShowDocumentPreview(false);
+        console.error('Failed to initialize actor:', error);
+        showStatus('upload', 'Failed to connect to the Internet Computer. Please check your connection.', 'error');
+      }
+    };
+    
+    initActor();
+  }, []);
+
+  // Handle tab switching
+  const openTab = (tabName: 'upload' | 'retrieve') => {
+    setActiveTab(tabName);
+  };
+
+  // Handle file selection
+  const handleFileSelection = (file: File) => {
+    setCurrentFile(file);
+    showStatus('upload', `File selected: ${file.name}`, 'info');
+    setVerified(false);
+    setShowNftResult(false);
+    setCurrentDocId(null);
+    setCurrentNFTId(null);
+  };
+
+  // File drop handlers
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (dropZoneRef.current) {
+      dropZoneRef.current.style.borderColor = '#b62ff0';
+      dropZoneRef.current.style.backgroundColor = 'rgba(182, 47, 240, 0.1)';
+    }
+  };
+
+  const handleDragLeave = () => {
+    if (dropZoneRef.current) {
+      dropZoneRef.current.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+      dropZoneRef.current.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    handleDragLeave();
+    
+    if (e.dataTransfer.files.length) {
+      handleFileSelection(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length) {
+      handleFileSelection(e.target.files[0]);
+    }
+  };
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = () => {
+        resolve(reader.result as string);
+      };
+      
+      reader.onerror = (error) => {
+        reject(error);
+      };
+      
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Calculate simple hash of file for tracking
+  const calculateFileHash = async (file: File): Promise<string> => {
+    // In a real app, use a proper hash function
+    // This is a simplified version
+    const arrayBuffer = await file.arrayBuffer();
+    const hashArray = Array.from(new Uint8Array(arrayBuffer))
+      .slice(0, 100) // Use just the first 100 bytes for demo
+      .map(b => b.toString(16).padStart(2, '0'));
+    
+    return hashArray.join('').substring(0, 40); // Return first 40 chars of hash
+  };
+
+  // Show status message
+  const showStatus = (type: 'upload' | 'retrieve', message: string, statusType: 'info' | 'success' | 'error') => {
+    if (type === 'upload') {
+      setUploadStatus({ message, type: statusType });
+      if (uploadStatusRef.current) {
+        uploadStatusRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else {
+      setRetrieveStatus({ message, type: statusType });
+      if (retrieveStatusRef.current) {
+        retrieveStatusRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
-  } catch (error) {
-    console.error('Fetch error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    showStatus('retrieve', `Error fetching document: ${errorMessage}`, 'error');
-    setShowDocumentPreview(false);
-  }
-};
+  };
+
+  // Handle document upload to IC
+  const handleUploadDocument = async () => {
+    if (!actor) {
+      showStatus('upload', 'Connection to Internet Computer not established', 'error');
+      return;
+    }
+
+    if (!currentFile) {
+      showStatus('upload', 'Please select a file first', 'error');
+      return;
+    }
+
+    showStatus('upload', 'Uploading document to Internet Computer...', 'info');
+
+    try {
+      // Convert file to base64 for storage
+      const fileContent = await fileToBase64(currentFile);
+      
+      // Calculate file hash for tracking
+      const fileHash = await calculateFileHash(currentFile);
+      
+      // Upload document to IC canister
+      const docId = await actor.uploadDocument(currentFile.name, fileHash, fileContent);
+      
+      setCurrentDocId(Number(docId));
+      showStatus('upload', `Document uploaded successfully! Document ID: ${docId}`, 'success');
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('upload', `Error uploading document: ${errorMessage}`, 'error');
+    }
+  };
+
+  // Handle verify document
+  const handleVerify = async () => {
+    if (!actor) {
+      showStatus('upload', 'Connection to Internet Computer not established', 'error');
+      return;
+    }
+
+    if (!currentFile) {
+      showStatus('upload', 'Please select a file first', 'error');
+      return;
+    }
+
+    if (!currentDocId) {
+      showStatus('upload', 'Please upload the document to the Internet Computer first', 'error');
+      return;
+    }
+    
+    showStatus('upload', 'Verifying document authenticity...', 'info');
+    
+    try {
+      // Convert file to base64 for API
+      const base64String = await fileToBase64(currentFile);
+      // Extract just the base64 data without the data URL prefix
+      const base64Data = base64String.split(',')[1];
+      
+      // Call the verification function on the IC canister
+      const isVerified = await actor.verifyDocument(currentDocId, base64Data);
+      
+      if (isVerified) {
+        setVerified(true);
+        showStatus('upload', 'Document verified successfully!', 'success');
+      } else {
+        showStatus('upload', 'Verification failed. Document may not be authentic.', 'error');
+      }
+    } catch (error) {
+      console.error('Verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('upload', `Error during verification: ${errorMessage}`, 'error');
+    }
+  };
+
+  // Handle push to blockchain (mint NFT)
+  const handlePushToBlockchain = async () => {
+    if (!actor) {
+      showStatus('upload', 'Connection to Internet Computer not established', 'error');
+      return;
+    }
+
+    if (!verified) {
+      showStatus('upload', 'Please verify your document first', 'error');
+      return;
+    }
+
+    if (!currentDocId) {
+      showStatus('upload', 'Document ID not found', 'error');
+      return;
+    }
+    
+    showStatus('upload', 'Minting NFT certificate...', 'info');
+    
+    try {
+      // Call the mintCertificateNFT function on the canister
+      const nftIdOpt = await actor.mintCertificateNFT(currentDocId);
+      
+      // Handle null case (Option type in Motoko returns null if None)
+      if (nftIdOpt === null) {
+        showStatus('upload', 'Failed to mint NFT. Document may not be verified.', 'error');
+        return;
+      }
+      
+      // Set the NFT ID in state
+      const nftId = Number(nftIdOpt);
+      setCurrentNFTId(`DOC${nftId}`);
+      
+      showStatus('upload', 'NFT certificate minted successfully!', 'success');
+    } catch (error) {
+      console.error('NFT minting error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('upload', `Error minting NFT: ${errorMessage}`, 'error');
+    }
+  };
+
+  // Handle fetch NFT ID
+  const handleFetchNFTId = () => {
+    if (!currentNFTId) {
+      showStatus('upload', 'Please mint your NFT certificate first', 'error');
+      return;
+    }
+    
+    setShowNftResult(true);
+    
+    // Auto-fill the retrieval input for demo convenience
+    setNftIdInput(currentNFTId);
+  };
+
+  // Parse NFT ID to get numeric ID
+  const parseNftId = (nftId: string): number | null => {
+    const match = nftId.match(/DOC(\d+)/);
+    if (match && match[1]) {
+      return parseInt(match[1], 10);
+    }
+    return null;
+  };
+
+  // Handle download document
+  const handleDownloadDocument = async (documentId: number, filename: string) => {
+    if (!actor) {
+      showStatus('retrieve', 'Connection to Internet Computer not established', 'error');
+      return;
+    }
+    
+    setDownloadLoading(true);
+    
+    try {
+      // Get document content from canister
+      const documentContent = await actor.getDocumentContent(documentId);
+      
+      if (!documentContent) {
+        showStatus('retrieve', 'Document content not found or you don\'t have permission to access it', 'error');
+        setDownloadLoading(false);
+        return;
+      }
+      
+      // Create a download link
+      const link = document.createElement('a');
+      link.href = documentContent;
+      link.download = filename;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showStatus('retrieve', 'Document downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Download error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('retrieve', `Error downloading document: ${errorMessage}`, 'error');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  // Handle fetch document
+  const handleFetchDocument = async () => {
+    if (!actor) {
+      showStatus('retrieve', 'Connection to Internet Computer not established', 'error');
+      return;
+    }
+
+    const nftId = nftIdInput.trim();
+    
+    if (!nftId) {
+      showStatus('retrieve', 'Please enter an NFT ID', 'error');
+      return;
+    }
+    
+    showStatus('retrieve', 'Fetching document from blockchain...', 'info');
+    
+    try {
+      // Parse the NFT ID to get the numeric part
+      const numericId = parseNftId(nftId);
+      
+      if (numericId === null) {
+        showStatus('retrieve', 'Invalid NFT ID format. Expected format: DOC123456', 'error');
+        return;
+      }
+      
+      // Query all documents for the current user
+      const myDocs = await actor.listMyDocuments();
+      
+      // Find the document with matching NFT ID
+      const doc: { nftId?: number; filename: string; id: number; fileHash: string } | undefined = myDocs.find(
+        (d: { nftId?: number; filename: string; id: number; fileHash: string }) => d.nftId && Number(d.nftId) === numericId
+      );
+      
+      if (doc) {
+        showStatus('retrieve', 'Document retrieved successfully!', 'success');
+        
+        // Store document ID for download
+        setCurrentDocId(doc.id);
+        
+        // Display document info
+        setShowDocumentPreview(true);
+        setPreviewContent(
+          <>
+            <p><strong>Filename:</strong> {doc.filename}</p>
+            <p><strong>Document ID:</strong> {doc.id.toString()}</p>
+            <p><strong>NFT ID:</strong> {doc.nftId ? `DOC${doc.nftId.toString()}` : 'N/A'}</p>
+            <p><strong>Status:</strong> <span style={{ color: '#2ed573' }}>✓ Verified</span></p>
+            <p><strong>File Hash:</strong> {doc.fileHash}</p>
+            <button 
+              className="form-btn download-btn"
+              onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+              disabled={downloadLoading}
+            >
+              {downloadLoading ? 'Downloading...' : 'Download Document'}
+            </button>
+          </>
+        );
+      } else {
+        // Try to fetch specific document if user has permission
+        try {
+          // For each document ID up to a reasonable limit, try to find one with the matching NFT ID
+          // This is inefficient but works within the constraints of the current backend design
+          for (let i = 1; i < 100; i++) {
+            const docOpt = await actor.getDocument(i);
+            if (docOpt && docOpt.nftId && Number(docOpt.nftId) === numericId) {
+              showStatus('retrieve', 'Document retrieved successfully!', 'success');
+              
+              // Store document ID for download
+              setCurrentDocId(i);
+              
+              setShowDocumentPreview(true);
+              setPreviewContent(
+                <>
+                  <p><strong>Filename:</strong> {docOpt.filename}</p>
+                  <p><strong>Document ID:</strong> {docOpt.id.toString()}</p>
+                  <p><strong>NFT ID:</strong> DOC{docOpt.nftId.toString()}</p>
+                  <p><strong>Status:</strong> <span style={{ color: '#2ed573' }}>✓ Verified</span></p>
+                  <p><strong>File Hash:</strong> {docOpt.fileHash}</p>
+                  <button 
+                    className="form-btn download-btn"
+                    onClick={() => handleDownloadDocument(i, docOpt.filename)}
+                    disabled={downloadLoading}
+                  >
+                    {downloadLoading ? 'Downloading...' : 'Download Document'}
+                  </button>
+                </>
+              );
+              return;
+            }
+          }
+          
+          showStatus('retrieve', 'No document found with this NFT ID or you do not have permission to view it', 'error');
+          setShowDocumentPreview(false);
+        } catch (error) {
+          console.error('Document fetch error:', error);
+          showStatus('retrieve', 'No document found with this NFT ID or you do not have permission to view it', 'error');
+          setShowDocumentPreview(false);
+        }
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showStatus('retrieve', `Error fetching document: ${errorMessage}`, 'error');
+      setShowDocumentPreview(false);
+    }
+  };
 
   return (
     <>
@@ -481,9 +540,19 @@ const handleFetchDocument = async () => {
                 )}
                 
                 <button 
+                  id="uploadButton" 
+                  className="form-btn"
+                  onClick={handleUploadDocument}
+                  disabled={!currentFile}
+                >
+                  Upload Document
+                </button>
+                
+                <button 
                   id="verifyButton" 
                   className="form-btn"
                   onClick={handleVerify}
+                  disabled={!currentDocId}
                 >
                   Verify Your Document
                 </button>
@@ -546,7 +615,7 @@ const handleFetchDocument = async () => {
                 )}
                 
                 {showDocumentPreview && (
-                  <div id="documentPreview">
+                  <div id="documentPreview" className="document-preview">
                     <h3>Document Information</h3>
                     <div id="previewContent">{previewContent}</div>
                   </div>

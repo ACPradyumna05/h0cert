@@ -20,6 +20,7 @@ actor AcademicCertificate {
     fileHash: Text;
     verified: Bool;
     nftId: ?Nat;
+    content: ?Text; // Optional field to store document content as base64
   };
 
   stable var documents : [Document] = [];
@@ -31,7 +32,8 @@ actor AcademicCertificate {
     http_request : ICTypes.HttpRequestArgs -> async ICTypes.HttpResponsePayload;
   } = actor "aaaaa-aa";
 
-  public shared(msg) func uploadDocument(filename: Text, fileHash: Text) : async Nat {
+  // Updated to include document content
+  public shared(msg) func uploadDocument(filename: Text, fileHash: Text, content: Text) : async Nat {
     // Get caller principal from message context
     let caller = msg.caller;
     let doc = {
@@ -41,6 +43,7 @@ actor AcademicCertificate {
       fileHash = fileHash;
       verified = false;
       nftId = null;
+      content = ?content; // Store the document content
     };
     documents := Array.append(documents, [doc]);
     let docId = nextDocId;
@@ -58,6 +61,26 @@ actor AcademicCertificate {
       };
       i += 1;
     };
+    return null;
+  };
+
+  // New function to get document content with proper access control
+  public shared(msg) func getDocumentContent(docId: Nat) : async ?Text {
+    let caller = msg.caller;
+    
+    for (doc in documents.vals()) {
+      if (doc.id == docId) {
+        // Check if the caller is the document owner
+        if (doc.owner == caller) {
+          return doc.content;
+        } else {
+          Debug.print("Access denied: not the document owner");
+          return null;
+        };
+      };
+    };
+    
+    Debug.print("Document not found: " # Nat.toText(docId));
     return null;
   };
 
@@ -135,6 +158,7 @@ actor AcademicCertificate {
                 fileHash = doc.fileHash;
                 verified = true;
                 nftId = doc.nftId;
+                content = doc.content; // Preserve the document content
               };
               updatedDocs := Array.append(updatedDocs, [updatedDoc]);
             } else {
@@ -157,6 +181,8 @@ actor AcademicCertificate {
       };
     };
   };
+
+  
 
   public func mintCertificateNFT(docId: Nat) : async ?Nat {
     let indexOpt = findDocumentIndex(docId);
@@ -191,6 +217,7 @@ actor AcademicCertificate {
                 fileHash = d.fileHash;
                 verified = d.verified;
                 nftId = ?nftId;
+                content = d.content; // Preserve the document content
               };
               updatedDocs := Array.append(updatedDocs, [updatedDoc]);
             } else {
@@ -217,7 +244,16 @@ actor AcademicCertificate {
   public query func getDocument(docId: Nat) : async ?Document {
     for (doc in documents.vals()) {
       if (doc.id == docId) {
-        return ?doc;
+        // Return document details but exclude content for security
+        return ?{
+          id = doc.id;
+          owner = doc.owner;
+          filename = doc.filename;
+          fileHash = doc.fileHash;
+          verified = doc.verified;
+          nftId = doc.nftId;
+          content = null; // Don't expose content through general query
+        };
       };
     };
     return null;
@@ -226,6 +262,21 @@ actor AcademicCertificate {
   public shared query(msg) func listMyDocuments() : async [Document] {
     // Get caller principal from message context
     let caller = msg.caller;
-    return Array.filter<Document>(documents, func(d) { d.owner == caller });
+    
+    // Filter documents by owner and exclude content field for this listing
+    return Array.map<Document, Document>(
+      Array.filter<Document>(documents, func(d) { d.owner == caller }),
+      func(doc) {
+        {
+          id = doc.id;
+          owner = doc.owner;
+          filename = doc.filename;
+          fileHash = doc.fileHash;
+          verified = doc.verified;
+          nftId = doc.nftId;
+          content = null; // Don't expose content through listing
+        }
+      }
+    );
   };
 }

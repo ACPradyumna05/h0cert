@@ -116,6 +116,31 @@
     overflow: hidden;
   }
   
+/* Add this to your Upload.css file */
+
+.download-btn {
+    background-color: #2e8b57;
+    color: white;
+    transition: background-color 0.3s ease;
+  }
+  
+  .download-btn:hover {
+    background-color: #3cb371;
+  }
+  
+  .download-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+  
+  .document-preview {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
   /* Verification container styles */
   .verification-container {
     display: flex;
