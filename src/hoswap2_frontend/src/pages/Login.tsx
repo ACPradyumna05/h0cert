@@ -220,7 +220,7 @@ const Login: React.FC = () => {
                     <path d="M24 16H8" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
                   Connect with ICP Wallet
-                  <img width="80px" height="80px" src="/home/prady/hoswap2/src/hoswap2_frontend/icp.png" alt="icp-logo" />
+                  <img width="80px" height="80px" src="/home/prady/hoswap2/internet-computer-icp-logo.png"/>
                 </button>
                 
                 <div className="or-divider">

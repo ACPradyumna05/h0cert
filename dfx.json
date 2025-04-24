@@ -1,7 +1,7 @@
 {
   "canisters": {
     "hoswap2_backend": {
-      "main": "src/hoswap2_backend/main.mo",
+      "main": "src/academic_certificate/main.mo",
       "type": "motoko"
     },
 
