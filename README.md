@@ -47,9 +47,7 @@
 
 ## 📸 Description
 
-```<iframe width="1478" height="569" src="https://www.youtube.com/embed/TQppG0y1Pmk" title="CertiNode - Secured, Verified and Tamper proof Documents on the Blockchain" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>```
-
-> https://youtu.be/TQppG0y1Pmk
+[![Watch the video](https://i9.ytimg.com/vi/TQppG0y1Pmk/mqdefault.jpg?sqp=CMCaqcAG-oaymwEmCMACELQB8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGD4gEyh_MA8=&rs=AOn4CLC90KsFeNnV_LMx8vNHW6rf685pFQ)](https://youtu.be/TQppG0y1Pmk)
 ---
 
 ## 🤝 Contributing
